@@ -103,7 +103,7 @@ struct Edge {
 Point s_pos, e_pos;
 int s_idx, e_idx;
 int d[MAX_NUM_POINT];
-char _map[N][M] = {{'E', 'X', 'X', 'X', 'X'}, {'X', 'X', 'X', 'X', 'X'},
+char _map[N][M] = {{'X', 'X', 'X', 'X', 'E'}, {'X', 'X', 'X', 'X', 'X'},
                    {'X', 'X', 'X', 'X', 'X'}, {'X', 'X', 'X', 'X', 'X'}, {'X', 'X', 'X', 'X', 'S'}};
 
 bool visited[MAX_NUM_POINT];
@@ -138,7 +138,6 @@ void init_map() {
   }
 }
 
-
 void add_edge(int u, int v, char c) {
   edges.push_back(Edge(u, v, c));
   int index = edges.size() - 1;
@@ -167,7 +166,6 @@ void rev_bfs() {
   }
 }
 
-
 void bfs() {
   queue<int> que;
   que.push(s_idx);
@@ -190,7 +188,6 @@ void bfs() {
   }
 }
 
-
 // pinmode define
 #define MOTOR_C_P 10
 #define MOTOR_C_N 11
@@ -203,7 +200,6 @@ void bfs() {
 
 #define LED_PIN 15
 #define IS_OBSTACLE_PIN 2
-
 
 void stop_car() {
   analogWrite(MOTOR_C_P, 0);
@@ -349,26 +345,37 @@ void fill_map(int i, int j) {
     digitalWrite(LED_PIN, HIGH);
   } else {
       int one_op = 0;
-      while (digitalRead(IS_OBSTACLE_PIN) == HIGH) {
-        if (!one_op) {
-          switch(cur_dir) {
-            case FRONT: 
-                 if (i - 1 >= 0)
-                   _map[i - 1][j] = '.'; cur_i--; break;
-            case LEFT: 
-                 if (j - 1 >= 0)
-                   _map[i][j - 1] = '.'; cur_j--; break;
-            case BACK: 
-                 if (i + 1 < N)
-                   _map[i + 1][j] = '.'; cur_i++; break;
-            case RIGHT: 
-                 if (j + 1 < M)
-                   _map[i][j + 1] = '.'; cur_j++; break;
-          }
-          one_op = 1;
-        }
-      }
       digitalWrite(LED_PIN, LOW);
+      switch(cur_dir) {
+        case FRONT: 
+           if (i - 1 >= 0) {
+             _map[i - 1][j] = '.';
+             if (cur_i > 0)
+               cur_i--;
+           }
+           break;
+        case LEFT:
+           if (j - 1 >= 0) {
+             _map[i][j - 1] = '.';
+             if (cur_j > 0)
+               cur_j--;
+           }
+           break;
+        case BACK: 
+           if (i + 1 < N) {
+             _map[i + 1][j] = '.';
+             if (cur_i < N - 1)
+               cur_i++;
+           }
+           break;
+        case RIGHT: 
+           if (j + 1 < M) {
+             _map[i][j + 1] = '.';
+             if (cur_j < M - 1)
+               cur_j++;
+           }
+           break;
+      }
   }
 }
 
@@ -390,7 +397,6 @@ void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
   pinMode(IS_OBSTACLE_PIN, INPUT);
-  
 }
 
 enum {
@@ -416,11 +422,15 @@ void loop() {
       case 'D':
         key = Serial.read();
         int next_state;
+//        if (cal_distance_s3() < 400 && key == 87) {
+//          stop_car();
+//          continue;
+//        }
         switch (key) {
-          case 70: cur_dir = FRONT; break;
-          case 76: cur_dir = LEFT; break;
-          case 82: cur_dir = RIGHT; break;
-          case 66: cur_dir = BACK; break;
+          case 70: cur_dir = FRONT; continue;
+          case 76: cur_dir = LEFT; continue;
+          case 82: cur_dir = RIGHT; continue;
+          case 66: cur_dir = BACK; continue;
           case 69: traverse_end = 1; break;
           case 87: next_state = FORWARD; break;
           case 83: next_state = BACKWARD; break;
@@ -454,7 +464,7 @@ void loop() {
         }
         if (_state == cancel_state) {
           _state = STOP;
-          stop_car();          
+          stop_car();
         }
         break;
     }
@@ -467,6 +477,7 @@ void loop() {
   }
   delay(1);
   if (traverse_end) {
+    stop_car();
     init_start_end();
     init_map();
     rev_bfs();
