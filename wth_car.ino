@@ -1,12 +1,19 @@
+#include "MsTimer2.h"
+
 #define MAX_NUM_POINT 50
-#define MAX_NUM_VECTOR 10
+#define MAX_NUM_VECTOR 50
 #define MAX_NUM_QUEUE 200
 #define N 5
 #define M 5
 
+#define DEFAULT_FB_POWER 0.18
+#define DEFAULT_LR_POWER 0.2
+#define TIMEOUT 500;
+
 int traverse_end = 0;
 int cur_dir = 1;
 int cur_i = 4, cur_j = 4;
+int auto_drive = 0;
 
 template <typename T>
 class queue {
@@ -103,22 +110,35 @@ struct Edge {
 Point s_pos, e_pos;
 int s_idx, e_idx;
 int d[MAX_NUM_POINT];
-char _map[N][M] = {{'X', 'X', 'X', 'X', 'E'}, {'X', 'X', 'X', 'X', 'X'},
-                   {'X', 'X', 'X', 'X', 'X'}, {'X', 'X', 'X', 'X', 'X'}, {'X', 'X', 'X', 'X', 'S'}};
+// need to change init_start_end()
+char _map[N][M] = {{'.', '.', '.', '.', 'E'},
+                   {'.', 'X', 'X', 'X', '.'},
+                   {'.', 'X', 'X', 'X', '.'}, 
+                   {'.', 'X', 'X', 'X', '.'}, 
+                   {'.', '.', '.', '.', 'S'}};
 
 bool visited[MAX_NUM_POINT];
 vector<char> ans;
 vector<Edge> edges;
 vector<int> G[MAX_NUM_POINT];
 
+
 void init_start_end() {
   s_pos.x = 4;
   s_pos.y = 4;
-  e_pos.x = 0;
-  e_pos.y = 0;
+  e_pos.x = 2;
+  e_pos.y = 1;
   s_idx = s_pos.x * M + s_pos.y;
   e_idx = e_pos.x * M + e_pos.y;
 }
+
+
+void add_edge(int u, int v, char c) {
+  edges.push_back(Edge(u, v, c));
+  int index = edges.size() - 1;
+  G[u].push_back(index);
+}
+
 
 void init_map() {
   for (int i = 0; i < N; i++) {
@@ -138,15 +158,10 @@ void init_map() {
   }
 }
 
-void add_edge(int u, int v, char c) {
-  edges.push_back(Edge(u, v, c));
-  int index = edges.size() - 1;
-  G[u].push_back(index);
-}
-
 
 void rev_bfs() {
-  memset(visited, false, sizeof(visited));
+  for (int i = 0; i < MAX_NUM_POINT; i++)
+    visited[i] = false;
   queue<int> que;
   que.push(e_idx);
   visited[e_idx] = true;
@@ -187,6 +202,7 @@ void bfs() {
     }
   }
 }
+
 
 // pinmode define
 #define MOTOR_C_P 10
@@ -318,7 +334,7 @@ unsigned int high_len_3 = 0;
 unsigned int low_len_3 = 0;
 unsigned int len_mm_3 = 0;
 
-float cal_distance_s3() {
+void cal_distance_s3() {
   Serial3.flush();
   Serial3.write(0X55);
   delay(500);
@@ -327,9 +343,13 @@ float cal_distance_s3() {
       low_len_3 = Serial3.read();
       len_mm_3 = high_len_3 * 256 + low_len_3;
   }
-  return len_mm_3;
+  if (len_mm_3 < 500) {
+    stop_car();
+    delay(4000);
+    Serial.print("Stop car 4 seconds...");
+    auto_drive = 0;
+  }
 }
-
 
 int is_obstacle = HIGH;
 enum {
@@ -379,10 +399,6 @@ void fill_map(int i, int j) {
   }
 }
 
-void send_path() {
-  
-}
-
 void setup() {
   pinMode(MOTOR_A_P, OUTPUT);
   pinMode(MOTOR_A_N, OUTPUT);
@@ -397,6 +413,8 @@ void setup() {
   Serial.begin(115200);
   pinMode(LED_PIN, OUTPUT);
   pinMode(IS_OBSTACLE_PIN, INPUT);
+  
+//  MsTimer2::set(100, cal_distance_s3);
 }
 
 enum {
@@ -407,35 +425,30 @@ enum {
   TRUN_RIGHT
 };
 
-#define DEFAULT_FB_POWER 0.18
-#define DEFAULT_LR_POWER 0.2
-#define TIMEOUT 500;
+
 int _state = STOP;
 int _timeleft = 0;
-
 int tick = 0;
+
 void loop() {
-  fill_map(cur_i, cur_j);
-  while (Serial.available() > 0) {
+  // fill_map(cur_i, cur_j);
+  while (Serial.available() > 0 && (!auto_drive)) {
     byte cmd = Serial.read(), key;
     switch (cmd) {
       case 'D':
         key = Serial.read();
         int next_state;
-//        if (cal_distance_s3() < 400 && key == 87) {
-//          stop_car();
-//          continue;
-//        }
         switch (key) {
           case 70: cur_dir = FRONT; continue;
           case 76: cur_dir = LEFT; continue;
           case 82: cur_dir = RIGHT; continue;
           case 66: cur_dir = BACK; continue;
-          case 69: traverse_end = 1; break;
+          case 69: traverse_end = 1; continue;
           case 87: next_state = FORWARD; break;
           case 83: next_state = BACKWARD; break;
           case 65: next_state = TRUN_LEFT; break;
           case 68: next_state = TRUN_RIGHT; break;
+          case 80: auto_drive = 1; continue;
           default: continue;
         }
         if (_state == next_state) {
@@ -476,12 +489,53 @@ void loop() {
     }
   }
   delay(1);
-  if (traverse_end) {
+  int print_ticks = 5000;
+  while (traverse_end && print_ticks > 0) {
     stop_car();
     init_start_end();
     init_map();
     rev_bfs();
     bfs();
-    send_path();
+    if (d[s_idx] == 0)
+      Serial.print("No path!");
+    else {
+      Serial.print("Shorest Path: ");
+      for (int i = 0; i < ans.size(); i++)
+        Serial.print(ans[i]);
+    }
+    traverse_end = 0;
+    print_ticks--;
+  }
+  while (auto_drive) {
+    char dis_string[4];
+    dis_string[0] = 'U';
+    dis_string[1] = 'L';
+    dis_string[2] = 'R';
+    dis_string[3] = 'D';
+    int temp_ticks = 2000;
+    for (int i = 0; i < 4; i++) {
+      if (dis_string[i] == 'U') {
+        move_forward(DEFAULT_FB_POWER);
+        delay(2000);
+      }
+      else if (dis_string[i] == 'L') {
+        turn_left(DEFAULT_LR_POWER);
+        delay(2000);
+      }
+      else if (dis_string[i] == 'D') {
+        move_backward(DEFAULT_FB_POWER);
+        delay(2000);
+      }
+      else if (dis_string[i] == 'R') {
+        turn_right(DEFAULT_LR_POWER);
+        delay(2000);
+      }
+      cal_distance_s3();
+      if (!auto_drive) {
+        Serial.print("Meet the object, stop_car...");
+        break;
+      }
+    }
+    stop_car();
   }
 }
