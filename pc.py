@@ -42,6 +42,7 @@ def get_text():
                 count += 1
             break
         if data == 'No path!':
+            global path_exist
             path_exist = False
     print(main_text)
     return main_text
@@ -83,6 +84,7 @@ def draw_rectangle(canvas, x, y, color):
 
 
 def generate_map(_root, _map):
+    start_x = 0; start_y = 0
     canvas = tk.Canvas(_root, width=500, height=500, bg="white")
     canvas.create_text(250, 35, text='THE MAZE MAP ARDUINO SEND')
     canvas.create_text(350, 55, text='Shortest path: ' + shortest_path)
@@ -97,13 +99,29 @@ def generate_map(_root, _map):
                 draw_rectangle(canvas, cur_x, cur_y, 'white')
             elif _map[i][j] == 'E':
                 draw_rectangle(canvas, cur_x, cur_y, 'green')
-                canvas.create_text(cur_x + 35, cur_y + 35, text='E')
+                canvas.create_text(cur_x + 35, cur_y + 35, text='E', font=("Purisa", 12))
             elif _map[i][j] == 'S':
                 draw_rectangle(canvas, cur_x, cur_y, 'yellow')
-                canvas.create_text(cur_x + 35, cur_y + 35, text='S')
+                canvas.create_text(cur_x + 35, cur_y + 35, text='S', font=("Purisa", 12))
+                start_x = cur_x + 35; start_y = cur_y + 35
             cur_x += 70
         cur_y += 70
         cur_x = init_x
+    line_x = start_x; line_y = start_y
+    for i in shortest_path:
+        if i == 'U':
+            canvas.create_line(line_x, line_y, line_x, line_y - 70, width=2, fill='red')
+            line_y -= 70
+        elif i == 'D':
+            canvas.create_line(line_x, line_y, line_x, line_y + 70, width=2, fill='red')
+            line_y += 70
+        elif i == 'L':
+            canvas.create_line(line_x, line_y, line_x - 70, line_y, width=2, fill='red')
+            line_x -= 70
+        elif i == 'R':
+            canvas.create_line(line_x, line_y, line_x + 70, line_y, width=2, fill='red')
+            line_x += 70
+
     canvas.pack()
 
 
