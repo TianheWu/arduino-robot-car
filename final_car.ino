@@ -7,7 +7,7 @@
 #define M 5
 
 #define DEFAULT_FB_POWER 0.2
-#define DEFAULT_LR_POWER 0.18
+#define DEFAULT_LR_POWER 0.16
 #define TIMEOUT 500;
 
 int traverse_end = 0;
@@ -112,8 +112,8 @@ int s_idx, e_idx;
 int d[MAX_NUM_POINT];
 
 // need to change init_start_end()
-char _map[N][M] = {{'.', 'X', '.', '.', '.'},
-                   {'.', '.', 'E', 'X', '.'},
+char _map[N][M] = {{'X', 'X', 'E', '.', '.'},
+                   {'.', '.', '.', 'X', '.'},
                    {'.', 'X', 'X', 'X', '.'}, 
                    {'.', 'X', 'X', 'X', '.'}, 
                    {'.', '.', '.', '.', 'S'}};
@@ -127,7 +127,7 @@ vector<int> G[MAX_NUM_POINT];
 void init_start_end() {
   s_pos.x = 4;
   s_pos.y = 4;
-  e_pos.x = 1;
+  e_pos.x = 0;
   e_pos.y = 2;
   s_idx = s_pos.x * M + s_pos.y;
   e_idx = e_pos.x * M + e_pos.y;
@@ -335,6 +335,11 @@ unsigned int high_len_3 = 0;
 unsigned int low_len_3 = 0;
 unsigned int len_mm_3 = 0;
 
+unsigned int high_len_1 = 0;
+unsigned int low_len_1 = 0;
+unsigned int len_mm_1 = 0;
+
+
 int cal_distance_s3() {
   Serial3.flush();
   Serial3.write(0X55);
@@ -344,8 +349,25 @@ int cal_distance_s3() {
       low_len_3 = Serial3.read();
       len_mm_3 = high_len_3 * 256 + low_len_3;
   }
+  Serial.println("len: ");
+  Serial.println(len_mm_3);
   return len_mm_3;
 }
+
+int cal_distance_s1() {
+  Serial1.flush();
+  Serial1.write(0X55);
+  delay(500);
+  if (Serial1.available() >= 2) {
+      high_len_1 = Serial1.read();
+      low_len_1 = Serial1.read();
+      len_mm_1 = high_len_1 * 256 + low_len_1;
+  }
+  Serial.println("len: ");
+  Serial.println(len_mm_1);
+  return len_mm_1;
+}
+
 
 int is_obstacle = HIGH;
 enum {
@@ -515,26 +537,33 @@ void loop() {
     int max_ticks = 2000;
     int cur_state = S;
     for (int i = 0; i < ans.size(); i++) {
+      Serial.println("loop");
+      Serial.println(i);
       int next_state;
-      if (cal_distance_s3() < 200) {
-        next_state = 0;
-      }
       if (ans[i] == 'U') {
-        next_state = 1;
+        next_state = U;
       }
       else if (ans[i] == 'L') {
-        next_state = 2;
+        next_state = L;
       }
       else if (ans[i] == 'D') {
-        next_state = 4;
+        next_state = D;
       }
-      while (cal_distance_s3() > 200)
+      while (cal_distance_s3() > 280)
         move_forward(0.09);
-      if ((cur_state == 1 && next_state == 2) || (cur_state == 2 && next_state == 4)) {
+      stop_car();
+      Serial.println("stop moveforward...");
+      if ((cur_state == U && next_state == L) || (cur_state == L && next_state == D)) {
         stop_car();
-        while (cal_distance_s3() < 600)
-          turn_left(DEFAULT_LR_POWER);
+        Serial.println("start to turn left...");
+        turn_left(0.25);
+        delay(600);
+        move_forward(0.1);
+        delay(1100);
+        stop_car();
       }
+      stop_car();
+      cur_state = next_state;
     }
     auto_drive = 0;
     stop_car();

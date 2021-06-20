@@ -137,6 +137,8 @@ def key_down(e):
         _map = transform_str2map()
         generate_map(root_map, _map)
         root_map.mainloop()
+    if e.char == 'p':
+        get_text()
 
 
 frame = tk.Frame(root_move, width=200, height=200)
